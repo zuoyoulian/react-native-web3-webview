@@ -81,7 +81,14 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.processPool = processPool;
     WKUserContentController* userController = [[WKUserContentController alloc]init];
-    [userController addScriptMessageHandler:[[WeakScriptMessageDelegate alloc] initWithDelegate:self] name:@"reactNative"];
+    WeakScriptMessageDelegate *scriptMessageDelegate = [[WeakScriptMessageDelegate alloc] initWithDelegate:self];
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"reactNative"];
+      
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"signTransaction"];
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"signTypedMessage"];
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"signPersonalMessage"];
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"signMessage"];
+    [userController addScriptMessageHandler:scriptMessageDelegate name:@"requestAccounts"];
 
     config.userContentController = userController;
 
