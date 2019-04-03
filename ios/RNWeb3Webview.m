@@ -127,7 +127,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 - (void)setInjectedJavaScript:(NSString *)script {
   _injectedJavaScript = script;
   self.atEndScript = [[WKUserScript alloc] initWithSource:script
-                                            injectionTime:WKUserScriptInjectionTimeAtDocumentEnd
+                                            injectionTime:WKUserScriptInjectionTimeAtDocumentStart
                                          forMainFrameOnly:_injectedJavaScriptForMainFrameOnly];
   [self resetupScripts];
 }
