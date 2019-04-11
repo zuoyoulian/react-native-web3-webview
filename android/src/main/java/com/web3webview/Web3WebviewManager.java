@@ -1,12 +1,13 @@
 /**
  * Copyright (c) 2015-present, Facebook, Inc.
- *
+ * <p>
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 package com.web3webview;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -17,6 +18,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.support.annotation.RequiresApi;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.webkit.ConsoleMessage;
@@ -45,7 +48,6 @@ import com.facebook.react.common.MapBuilder;
 import com.facebook.react.common.ReactConstants;
 import com.facebook.react.common.build.ReactBuildConfig;
 import com.facebook.react.module.annotations.ReactModule;
-import com.facebook.react.uimanager.SimpleViewManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.UIManagerModule;
 import com.facebook.react.uimanager.annotations.ReactProp;
@@ -55,6 +57,7 @@ import com.facebook.react.uimanager.events.EventDispatcher;
 import com.facebook.react.views.scroll.OnScrollDispatchHelper;
 import com.facebook.react.views.scroll.ScrollEvent;
 import com.facebook.react.views.scroll.ScrollEventType;
+import com.facebook.react.views.webview.ReactWebViewManager;
 import com.facebook.react.views.webview.WebViewConfig;
 import com.facebook.react.views.webview.events.TopLoadingErrorEvent;
 import com.facebook.react.views.webview.events.TopLoadingFinishEvent;
@@ -68,7 +71,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -89,27 +91,27 @@ import static okhttp3.internal.Util.UTF_8;
 
 /**
  * Manages instances of {@link WebView}
- *
+ * <p>
  * Can accept following commands:
- *  - GO_BACK
- *  - GO_FORWARD
- *  - RELOAD
- *
+ * - GO_BACK
+ * - GO_FORWARD
+ * - RELOAD
+ * <p>
  * {@link WebView} instances could emit following direct events:
- *  - topLoadingFinish
- *  - topLoadingStart
- *  - topLoadingError
- *
+ * - topLoadingFinish
+ * - topLoadingStart
+ * - topLoadingError
+ * <p>
  * Each event will carry the following properties:
- *  - target - view's react tag
- *  - url - url set for the webview
- *  - loading - whether webview is in a loading state
- *  - title - title of the current page
- *  - canGoBack - boolean, whether there is anything on a history stack to go back
- *  - canGoForward - boolean, whether it is possible to request GO_FORWARD command
+ * - target - view's react tag
+ * - url - url set for the webview
+ * - loading - whether webview is in a loading state
+ * - title - title of the current page
+ * - canGoBack - boolean, whether there is anything on a history stack to go back
+ * - canGoForward - boolean, whether it is possible to request GO_FORWARD command
  */
 @ReactModule(name = Web3WebviewManager.REACT_CLASS)
-public class Web3WebviewManager extends SimpleViewManager<WebView> {
+public class Web3WebviewManager extends ReactWebViewManager {
 
     protected static final String REACT_CLASS = "Web3Webview";
 
@@ -130,7 +132,6 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     public static final int COMMAND_STOP_LOADING = 4;
     public static final int COMMAND_POST_MESSAGE = 5;
     public static final int COMMAND_INJECT_JAVASCRIPT = 6;
-    public static final int COMMAND_LOAD_URL = 7;
 
     // Use `webView.loadUrl("about:blank")` to reliably reset the view
     // state and release page resources (including any running JavaScript).
@@ -141,17 +142,21 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     private static ReactApplicationContext reactNativeContext;
     private static boolean debug;
     private Web3WebviewPackage pkg;
-    protected @Nullable WebView.PictureListener mPictureListener;
+    protected @Nullable
+    WebView.PictureListener mPictureListener;
 
     protected class Web3WebviewClient extends WebViewClient {
 
         protected boolean mLastLoadFailed = false;
-        protected @Nullable ReadableArray mUrlPrefixesForDefaultIntent;
-        protected @Nullable List<Pattern> mOriginWhitelist;
+        protected @Nullable
+        ReadableArray mUrlPrefixesForDefaultIntent;
+        protected @Nullable
+        List<Pattern> mOriginWhitelist;
 
 
         @Override
         public void onPageFinished(WebView webView, String url) {
+            Log.d("Web3Webview", "onPageFinished: " + url);
             super.onPageFinished(webView, url);
 
             if (!mLastLoadFailed) {
@@ -166,9 +171,9 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         }
 
 
-
         @Override
         public void onPageStarted(final WebView webView, String url, Bitmap favicon) {
+            Log.d("Web3Webview", "onPageStarted: " + url);
             super.onPageStarted(webView, url, favicon);
 
             mLastLoadFailed = false;
@@ -198,7 +203,6 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
 
             return super.shouldOverrideUrlLoading(view, request);
         }
-
 
 
         private void launchIntent(Context context, String url) {
@@ -278,16 +282,20 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
             return null;
         }
+
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            Log.d("Web3Webview", "shouldInterceptRequest / WebViewClient");
             WebResourceResponse response = null;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 response = Web3WebviewManager.this.shouldInterceptRequest(request, true, (Web3Webview) view);
                 if (response != null) {
+                    Log.d("Web3Webview", "shouldInterceptRequest::WebViewClient => YES");
                     return response;
                 }
             }
 
+            Log.d("Web3Webview", "shouldInterceptRequest::WebViewClient => NO");
             return super.shouldInterceptRequest(view, request);
         }
 
@@ -302,15 +310,109 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     }
 
     /**
+     * @param jsonString 包含Json字符串的数据
+     * @return json字符串
+     * @summary 去除非Json的字符串部分
+     */
+
+    private static String getJsonStrFromNetData(String jsonString) {
+        int first = jsonString.indexOf("[");
+        int last = jsonString.lastIndexOf("]");
+        String result = "";
+        if (last > first) {
+            result = jsonString.substring(first, last + 1);
+        }
+        return result;
+    }
+
+    /**
      * Subclass of {@link WebView} that implements {@link LifecycleEventListener} interface in order
      * to call {@link WebView#destroy} on activity destroy event and also to clear the client
      */
     protected static class Web3Webview extends WebView implements LifecycleEventListener {
-        protected @Nullable String injectedJS;
-        protected @Nullable String injectedOnStartLoadingJS;
+        protected @Nullable
+        String injectedJS;
+        protected @Nullable
+        String injectedOnStartLoadingJS;
         protected boolean messagingEnabled = false;
-        protected @Nullable Web3WebviewClient mWeb3WebviewClient;
+        protected @Nullable
+        Web3WebviewClient mWeb3WebviewClient;
         private final OnScrollDispatchHelper mOnScrollDispatchHelper = new OnScrollDispatchHelper();
+
+        private final class Web3SignTransactionBridge {
+            Web3Webview mContext;
+
+            Web3SignTransactionBridge(Web3Webview c) {
+                mContext = c;
+            }
+
+            @SuppressLint("JavascriptInterface")
+            @JavascriptInterface
+            public void postMessage(String message) {
+                Log.e("Web3SignTransaction", message);
+                mContext.onMessage(message);
+            }
+        }
+
+        protected class Web3SignPersonalMessageBridge {
+            Web3Webview mContext;
+
+            Web3SignPersonalMessageBridge(Web3Webview c) {
+                mContext = c;
+            }
+
+            @SuppressLint("JavascriptInterface")
+            @JavascriptInterface
+            public void postMessage(String message) {
+                mContext.onMessage(message);
+                Log.e("web3-onMessage", "Web3SignPersonalMessageBridge");
+            }
+        }
+
+        protected class Web3SignTypedMessageBridge {
+            Web3Webview mContext;
+
+            Web3SignTypedMessageBridge(Web3Webview c) {
+                mContext = c;
+            }
+
+            @SuppressLint("JavascriptInterface")
+            @JavascriptInterface
+            public void postMessage(String message) {
+                mContext.onMessage(message);
+                Log.e("web3-onMessage", "Web3SignTypedMessageBridge");
+            }
+        }
+
+        protected class Web3SignMessageBridge {
+            Web3Webview mContext;
+
+            Web3SignMessageBridge(Web3Webview c) {
+                mContext = c;
+            }
+
+            @SuppressLint("JavascriptInterface")
+            @JavascriptInterface
+            public void postMessage(String message) {
+                mContext.onMessage(message);
+                Log.e("Web3SignMessage", message);
+            }
+        }
+
+        protected class Web3RequestAccountsBridge {
+            Web3Webview mContext;
+
+            Web3RequestAccountsBridge(Web3Webview c) {
+                mContext = c;
+            }
+
+            @SuppressLint("JavascriptInterface")
+            @JavascriptInterface
+            public void postMessage(String message) {
+                mContext.onMessage(message);
+                Log.e("web3-onMessage", "Web3RequestAccountsBridge");
+            }
+        }
 
         protected class Web3WebviewBridge {
             Web3Webview mContext;
@@ -319,18 +421,20 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
                 mContext = c;
             }
 
+            @SuppressLint("JavascriptInterface")
             @JavascriptInterface
             public void postMessage(String message) {
                 mContext.onMessage(message);
+                Log.e("web3-onMessage", "Web3WebviewBridge");
+
             }
         }
 
         /**
          * WebView must be created with an context of the current activity
-         *
+         * <p>
          * Activity Context is required for creation of dialogs internally by WebView
          * Reactive Native needed for access to ReactNative internal system functionality
-         *
          */
         public Web3Webview(ThemedReactContext reactContext) {
             super(reactContext);
@@ -350,15 +454,32 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         public void onHostDestroy() {
             cleanupCallbacksAndDestroy();
         }
-        
+
+        @Override
+        public boolean onKeyDown(int keyCode, KeyEvent event) {
+
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_BACK:
+                        if (this.canGoBack()) {
+                            this.goBack();
+                            return true;
+                        }
+
+                }
+
+            }
+            return super.onKeyDown(keyCode, event);
+        }
 
         @Override
         public void setWebViewClient(WebViewClient client) {
             super.setWebViewClient(client);
-            mWeb3WebviewClient = (Web3WebviewClient)client;
+            mWeb3WebviewClient = (Web3WebviewClient) client;
         }
 
-        public @Nullable Web3WebviewClient getWeb3WebviewClient() {
+        public @Nullable
+        Web3WebviewClient getWeb3WebviewClient() {
             return mWeb3WebviewClient;
         }
 
@@ -374,6 +495,8 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
             return new Web3WebviewBridge(webView);
         }
 
+
+        @SuppressLint("JavascriptInterface")
         public void setMessagingEnabled(boolean enabled) {
             if (messagingEnabled == enabled) {
                 return;
@@ -382,48 +505,41 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
             messagingEnabled = enabled;
             if (enabled) {
                 addJavascriptInterface(createWeb3WebviewBridge(this), BRIDGE_NAME);
+                addJavascriptInterface(new Web3SignTransactionBridge(this), "signTransaction");
+                addJavascriptInterface(new Web3SignPersonalMessageBridge(this), "signPersonalMessage");
+                addJavascriptInterface(new Web3SignTypedMessageBridge(this), "signTypedMessage");
+                addJavascriptInterface(new Web3SignMessageBridge(this), "signMessage");
+                addJavascriptInterface(new Web3RequestAccountsBridge(this), "requestAccounts");
+                Log.d("Web3WebviewBridge", "bridge linking complete");
             } else {
                 removeJavascriptInterface(BRIDGE_NAME);
             }
         }
 
-        protected void evaluateJavascriptWithFallback(String script) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                evaluateJavascript(script, null);
-                return;
-            }
-
-            try {
-                loadUrl("javascript:" + URLEncoder.encode(script, "UTF-8"));
-            } catch (UnsupportedEncodingException e) {
-                // UTF-8 should always be supported
-                throw new RuntimeException(e);
-            }
-        }
-
-
         public void callInjectedJavaScript() {
             if (getSettings().getJavaScriptEnabled() &&
                     injectedJS != null &&
                     !TextUtils.isEmpty(injectedJS)) {
-                evaluateJavascriptWithFallback("(function() {\n" + injectedJS + ";\n})();");
+                loadUrl("javascript:(function() {\n" + injectedJS + ";\n})();");
             }
         }
+
 
         public void linkBridge() {
             if (messagingEnabled) {
                 String script = "(" +
-                        "window.postMessageToNative = function(data) {"+
-                            BRIDGE_NAME + ".postMessage(JSON.stringify(data));"+
-                        "}"+
-                ")";
-                evaluateJavascriptWithFallback(script);
+                        "window.postMessageToNative = function(data) {window." +
+                        BRIDGE_NAME + ".postMessage(JSON.stringify(data));" +
+                        "}" +
+                        ")";
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    evaluateJavascript(script
+                            , null);
+                } else {
+                    loadUrl("javascript:" + script);
+                }
 
             }
-        }
-
-        public void unlinkBridge() {
-            this.loadUrl("about:blank");
         }
 
         public void onMessage(String message) {
@@ -431,21 +547,20 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         }
 
 
-
         protected void onScrollChanged(int x, int y, int oldX, int oldY) {
             super.onScrollChanged(x, y, oldX, oldY);
             if (mOnScrollDispatchHelper.onScrollChanged(x, y)) {
                 ScrollEvent event = ScrollEvent.obtain(
-                this.getId(),
-                ScrollEventType.SCROLL,
-                x,
-                y,
-                mOnScrollDispatchHelper.getXFlingVelocity(),
-                mOnScrollDispatchHelper.getYFlingVelocity(),
-                this.computeHorizontalScrollRange(),
-                this.computeVerticalScrollRange(),
-                this.getWidth(),
-                this.getHeight());
+                        this.getId(),
+                        ScrollEventType.SCROLL,
+                        x,
+                        y,
+                        mOnScrollDispatchHelper.getXFlingVelocity(),
+                        mOnScrollDispatchHelper.getYFlingVelocity(),
+                        this.computeHorizontalScrollRange(),
+                        this.computeVerticalScrollRange(),
+                        this.getWidth(),
+                        this.getHeight());
                 dispatchEvent(this, event);
             }
         }
@@ -524,7 +639,6 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     }
 
 
-
     protected Web3Webview createWeb3WebviewInstance(ThemedReactContext reactContext) {
         return new Web3Webview(reactContext);
     }
@@ -538,16 +652,18 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onConsoleMessage(ConsoleMessage message) {
+                Log.e("Web3Webview", message.message());
                 if (ReactBuildConfig.DEBUG) {
                     return super.onConsoleMessage(message);
                 }
                 // Ignore console logs in non debug builds.
                 return true;
             }
+
             public void onProgressChanged(WebView view, int progress) {
                 dispatchEvent(view, new ProgressEvent(view.getId(), progress));
 
-                if(webView.getProgress() >= 10){
+                if (webView.getProgress() >= 10) {
                     webView.linkBridge();
                 }
             }
@@ -564,7 +680,7 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         settings.setDisplayZoomControls(false);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
-        settings.setAppCacheEnabled (true);
+        settings.setAppCacheEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setAllowContentAccess(true);
         settings.setLoadsImagesAutomatically(true);
@@ -592,10 +708,13 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
             swController.setServiceWorkerClient(new ServiceWorkerClient() {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
+                    Log.d("Web3Webview", "shouldInterceptRequest / ServiceWorkerClient");
                     WebResourceResponse response = Web3WebviewManager.this.shouldInterceptRequest(request, false, webView);
                     if (response != null) {
+                        Log.d("Web3Webview", "shouldInterceptRequest / ServiceWorkerClient -> return intersept response");
                         return response;
                     }
+                    Log.d("Web3Webview", "shouldInterceptRequest / ServiceWorkerClient -> intercept response is nil, delegating up");
                     return super.shouldInterceptRequest(request);
                 }
             });
@@ -637,7 +756,7 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
 
     @ReactProp(name = "mediaPlaybackRequiresUserAction")
     public void setMediaPlaybackRequiresUserAction(WebView view, boolean requires) {
-        if(Build.VERSION.SDK_INT >= 17) {
+        if (Build.VERSION.SDK_INT >= 17) {
             view.getSettings().setMediaPlaybackRequiresUserGesture(requires);
         }
     }
@@ -770,7 +889,7 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
         Web3WebviewClient client = ((Web3Webview) view).getWeb3WebviewClient();
         if (client != null && originWhitelist != null) {
             List<Pattern> whiteList = new LinkedList<>();
-            for (int i = 0 ; i < originWhitelist.size() ; i++) {
+            for (int i = 0; i < originWhitelist.size(); i++) {
                 whiteList.add(Pattern.compile(originWhitelist.getString(i)));
             }
             client.setOriginWhitelist(whiteList);
@@ -783,7 +902,8 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     }
 
     @Override
-    public @Nullable Map<String, Integer> getCommandsMap() {
+    public @Nullable
+    Map<String, Integer> getCommandsMap() {
         return MapBuilder.of(
                 "goBack", COMMAND_GO_BACK,
                 "goForward", COMMAND_GO_FORWARD,
@@ -811,10 +931,9 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
                 break;
             case COMMAND_POST_MESSAGE:
                 try {
-                    Web3Webview webView = (Web3Webview) root;
                     JSONObject eventInitDict = new JSONObject();
                     eventInitDict.put("data", args.getString(0));
-                    webView.evaluateJavascriptWithFallback("(function () {" +
+                    root.loadUrl("javascript:(function () {" +
                             "var event;" +
                             "var data = " + eventInitDict.toString() + ";" +
                             "try {" +
@@ -830,18 +949,15 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
                 }
                 break;
             case COMMAND_INJECT_JAVASCRIPT:
-                Web3Webview webView = (Web3Webview) root;
-                webView.evaluateJavascriptWithFallback(args.getString(0));
+                root.loadUrl("javascript:" + args.getString(0));
                 break;
         }
     }
 
     @Override
     public void onDropViewInstance(WebView webView) {
-        super.onDropViewInstance(webView);
-        Web3Webview w = (Web3Webview) webView;
-        ((ThemedReactContext) webView.getContext()).removeLifecycleEventListener(w);
-        w.cleanupCallbacksAndDestroy();
+        ((ThemedReactContext) webView.getContext()).removeLifecycleEventListener((Web3Webview) webView);
+        ((Web3Webview) webView).cleanupCallbacksAndDestroy();
     }
 
     protected WebView.PictureListener getPictureListener() {
@@ -869,7 +985,8 @@ public class Web3WebviewManager extends SimpleViewManager<WebView> {
     }
 
     @Override
-    public @Nullable Map getExportedCustomBubblingEventTypeConstants() {
+    public @Nullable
+    Map getExportedCustomBubblingEventTypeConstants() {
         return MapBuilder.builder()
                 .put("progress",
                         MapBuilder.of(
